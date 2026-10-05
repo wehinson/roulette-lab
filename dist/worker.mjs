@@ -1,0 +1,1 @@
+import {simulate} from './engine.mjs';self.onmessage=e=>{try{const results=simulate(e.data,p=>self.postMessage({progress:p}));self.postMessage({results});}catch(e){self.postMessage({error:e.message});}};
