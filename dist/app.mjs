@@ -2,7 +2,7 @@ import {options,prepare,bettingCommand} from './engine.mjs';
 import {mountBoard} from './board.mjs';
 import {summarizeRun,percentile,createRunReport,reportFilename} from './report.mjs';
 let lastReport;
-const releasePromise=fetch('./release.json',{cache:'no-store',signal:AbortSignal.timeout(3000)}).then(r=>r.ok?r.json():{}).catch(()=>({}));
+const releasePromise=Promise.race([fetch('./release.json',{cache:'no-store'}).then(r=>r.ok?r.json():{}).catch(()=>({})),new Promise(resolve=>setTimeout(()=>resolve({}),3000))]);
 const $=id=>document.getElementById(id);let pockets=37,bets=[{type:'red',value:'',amount:10,every:1,start:1}],worker;
 const types={red:'Red · 1:1',black:'Black · 1:1',odd:'Odd · 1:1',even:'Even · 1:1',low:'1–18 · 1:1',high:'19–36 · 1:1',dozen:'Dozen · 2:1',column:'Column · 2:1',straight:'Single number · 35:1',split:'Split · 17:1',street:'Street · 11:1',corner:'Corner · 8:1',six:'Six-line · 5:1',basket:'0, 00, 1, 2, 3 · 6:1'};
 const help={flat:'Use each rule’s amount whenever it is due. A useful baseline for any experiment.',martingale:'Double after a net loss; reset after a net win. Stakes can grow very quickly.',reverse:'Double after a net win; reset after a loss or the selected win streak.',fibonacci:'After losses: 1, 1, 2, 3, 5… units. After a win, move back two steps.',dalembert:'Add one unit after a net loss; subtract one after a win, never below one.'};
