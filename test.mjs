@@ -1,4 +1,4 @@
-import assert from 'node:assert/strict';import {prepare,settle,options,session,rng,simulate,multiplier,nextIndex} from './dist/engine.mjs';
+import assert from 'node:assert/strict';import {prepare,settle,options,session,rng,simulate,multiplier,nextIndex,describeBet,bettingCommand} from './dist/engine.mjs';
 let checks=0;function equal(a,b){assert.ok(Math.abs(a-b)<1e-8,`${a} != ${b}`);checks++;}
 for(const n of [37,38,39])for(const type of ['red','black','odd','even','low','high','dozen','column','straight','split','street','corner','six']){const opts=options(type,n);for(const o of opts.length?opts:[{value:''}]){const b=prepare({type,value:o.value},n);equal(new Set(b.nums).size,b.nums.length);assert.ok(b.nums.every(x=>x>=0&&x<n));equal(Array.from({length:n},(_,i)=>settle(b,i,1)).reduce((a,b)=>a+b,0)/n,-(n-36)/n);}}
 const basket=prepare({type:'basket'},38);equal(basket.edge,3/38);equal(Array.from({length:38},(_,i)=>settle(basket,i,1)).reduce((a,b)=>a+b,0)/38,-3/38);for(const type of ['red','black','odd','even','low','high','dozen','column'])for(const z of [0,37,38])equal(settle(prepare({type,value:'1'},39),z,10),-10);
@@ -17,6 +17,35 @@ s=session({...c,spins:3,bets:[{type:'straight',value:'1',amount:10,every:1,start
 s=session({...scheduled,takeProfit:100},()=>17/37);equal(s.spins,3);assert.equal(s.reason,'profit target');
 for(const n of [37,38,39]){const zero=n-1;const result=session({...c,pockets:n,spins:6,bets:[{type:'straight',value:String(zero),amount:2,every:2,start:2}]},()=>zero/n);equal(result.profit,210);equal(result.wagered,6);equal(result.benchmark,-6*(n-36)/n);}
 console.log(`Scheduled wagering checks passed; ${checks} total numerical assertions.`);
-// Board target coverage and event wiring without a browser.
-class E {constructor(){this.children=[];this.dataset={};this.style={setProperty(){}};this.classList={toggle(){}};}append(...c){this.children.push(...c);}replaceChildren(){this.children=[];}setAttribute(k,v){this[k]=v;}after(e){extras.push(e);}remove(){extras=extras.filter(x=>x!==this);}}
-let extras=[],regions=Object.fromEntries(['zeroBoard','numberBoard','streetBoard','columnBoard','dozenBoard','outsideBoard','basketBoard'].map(id=>[id,new E()]));globalThis.document={getElementById:id=>regions[id],createElement:()=>new E(),querySelectorAll:()=>extras};const {mountBoard}=await import('./dist/board.mjs');for(const n of [37,38,39]){let clicked;mountBoard(n,(b,label)=>clicked={b,label});const buttons=[...Object.values(regions),...extras].flatMap(e=>e.children);assert.equal(regions.numberBoard.children.filter(x=>x.className.includes('number ')).length,36);assert.equal(regions.zeroBoard.children.length,n-36);assert.equal(regions.basketBoard.children.length,n===38?1:0);for(const button of buttons){button.onclick({currentTarget:button});const p=prepare(clicked.b,n);assert.ok(p.nums.length>0&&p.nums.every(x=>x>=0&&x<n));assert.ok(clicked.label.length);if(button.className.includes('marker'))assert.notEqual(clicked.label,'•');}console.log(`Board ${n}: ${buttons.length} selectable targets with valid event wiring.`);}delete globalThis.document;
+// All board targets call the same selection model, without a browser.
+class E {
+  constructor(){this.children=[];this.dataset={};this.style={setProperty(){}};this.classes=new Set();this.classList={toggle:(name,on)=>on?this.classes.add(name):this.classes.delete(name)};}
+  append(...c){this.children.push(...c);}replaceChildren(){this.children=[];}setAttribute(k,v){this[k]=v;}
+}
+const regions=Object.fromEntries(['zeroBoard','numberBoard','streetBoard','sixBoard','columnBoard','dozenBoard','outsideBoard','basketBoard'].map(id=>[id,new E()]));
+globalThis.document={getElementById:id=>regions[id],createElement:()=>new E()};
+const {mountBoard}=await import('./dist/board.mjs');
+for(const n of [37,38,39]){
+  let selected;mountBoard(n,b=>selected=b);
+  const buttons=Object.values(regions).flatMap(e=>e.children);
+  assert.equal(selected.type,'red');
+  assert.equal(regions.numberBoard.children.filter(x=>x.dataset.type==='straight').length,36);
+  assert.equal(regions.zeroBoard.children.length,n-36);
+  assert.equal(regions.basketBoard.children.length,n===38?1:0);
+  assert.deepEqual(regions.columnBoard.children.map(b=>b.dataset.value),['3','2','1']);
+  for(const button of buttons){
+    button.onclick();const prepared=prepare(selected,n);
+    assert.ok(prepared.nums.length>0&&prepared.nums.every(x=>x>=0&&x<n));
+    assert.ok(selected.label?.length);assert.equal(selected.payout,prepared.payout);
+    assert.equal(buttons.filter(b=>b.classes.has('selected')).length,1);
+    assert.equal(button['aria-pressed'],'true');
+    assert.deepEqual(buttons.filter(b=>b.classes.has('covered')).map(b=>+b.dataset.value).sort((a,b)=>a-b),[...prepared.nums].sort((a,b)=>a-b));
+    const text=bettingCommand(selected,{amount:10,every:3,start:2});
+    assert.ok(text.includes(selected.label));assert.ok(text.includes('every 3 spins, starting on spin 2'));
+  }
+  console.log(`Board ${n}: ${buttons.length} targets; command, selected chip, covered numbers, and payout checks passed.`);
+}
+assert.equal(describeBet({type:'straight',value:'37'},38).label,'00');
+assert.equal(describeBet({type:'straight',value:'38'},39).label,'000');
+assert.equal(describeBet({type:'corner',value:'1,2,4,5'},37).label,'Corner 1 / 2 / 4 / 5');
+delete globalThis.document;
