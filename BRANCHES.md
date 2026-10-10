@@ -1,9 +1,8 @@
-# Release 0.1.1
+# Working branch
 
 - Agent: Codex
-- Status: Shipped with William's approval to host the public app on GitHub Pages.
-- Changes: Selected gold chip and covered-number borders; Bet on field and command text follow board selection; connected roulette table layout; GitHub Pages hosting.
-- Checks: npm test passed 989 numerical assertions, seeded simulation checks, and all targets on 37-, 38-, and 39-pocket boards. Browser checks passed command population, scheduled rule creation, a complete simulation, and desktop/mobile layout checks.
-- Version: 0.1.1
+- Status: Active
+- Changes: Restore Red and Black labels; add a TXT troubleshooting report for the completed run; verify mobile layouts and controls.
+- Checks: Engine, report, and board tests passed. Phone, tablet, and landscape checks passed. Native browser download check in progress.
+- Version impact: Patch to 0.1.2 at ship.
 - Last update: 2026-10-09
-- Hosting: GitHub Pages. The previous Sites deployment remains available as the prior version.

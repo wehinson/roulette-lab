@@ -39,7 +39,7 @@ export function mountBoard(n,onSelect){
   }
   for(const i of [3,2,1])add($('columnBoard'),'column',String(i),'2 TO 1','column');
   for(let i=1;i<=3;i++)add($('dozenBoard'),'dozen',String(i),['1ST 12','2ND 12','3RD 12'][i-1],'dozen');
-  for(const[type,label]of [['low','1–18'],['even','EVEN'],['red','◆'],['black','◆'],['odd','ODD'],['high','19–36']])add($('outsideBoard'),type,'',label,'outside '+type);
+  for(const[type,label]of [['low','1–18'],['even','EVEN'],['red','Red'],['black','Black'],['odd','ODD'],['high','19–36']])add($('outsideBoard'),type,'',label,'outside '+type);
   if(n===38)add($('basketBoard'),'basket','','0 / 00 / 1 / 2 / 3 · BASKET','basket');
   choose(buttons.find(b=>b.dataset.type==='red'));
 }
