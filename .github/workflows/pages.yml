@@ -18,7 +18,8 @@ jobs:
           node-version: '22'
       - run: npm test
       - name: Stamp release
-        run: printf '{"commit":"%s","version":"%s"}\n' "$GITHUB_SHA" "$(node -p 'JSON.parse(require(\"fs\").readFileSync(\"package.json\")).version')" > dist/release.json
+        run: |
+          node -e 'const fs = require("node:fs"); fs.writeFileSync("dist/release.json", JSON.stringify({commit: process.env.GITHUB_SHA, version: JSON.parse(fs.readFileSync("package.json")).version}));'
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v4
         with:
