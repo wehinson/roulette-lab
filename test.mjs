@@ -49,3 +49,34 @@ assert.equal(describeBet({type:'straight',value:'37'},38).label,'00');
 assert.equal(describeBet({type:'straight',value:'38'},39).label,'000');
 assert.equal(describeBet({type:'corner',value:'1,2,4,5'},37).label,'Corner 1 / 2 / 4 / 5');
 delete globalThis.document;
+// Reports preserve the completed experiment and explain early stops.
+const {summarizeRun,createRunReport,reportFilename}=await import('./dist/report.mjs');
+const reportConfig={...c,spins:6,sessions:3,bets:[{type:'split',value:'1,2',amount:7,every:3,start:2}]};
+const reportResults=[
+  {bank:80,profit:-20,wagered:20,benchmark:-20/37,spins:3,wageringSpins:2,limitHits:0,reason:'cannot fund next bet',path:[{x:0,y:0},{x:3,y:-20}]},
+  {bank:100,profit:0,wagered:10,benchmark:-10/37,spins:6,wageringSpins:1,limitHits:0,reason:'spin limit'},
+  {bank:140,profit:40,wagered:20,benchmark:-20/37,spins:4,wageringSpins:2,limitHits:2,reason:'table limit'}
+];
+const stats=summarizeRun(reportResults);
+equal(stats.mean,20/3);equal(stats.se,Math.sqrt(2800/9));equal(stats.p10,-16);equal(stats.median,0);equal(stats.p90,32);
+assert.equal(stats.wins,1);assert.equal(stats.ties,1);assert.equal(stats.losses,1);assert.equal(stats.ruins,1);assert.equal(stats.limitSessions,1);assert.equal(stats.totals.limitHits,2);assert.equal(stats.totals.spins-stats.totals.wageringSpins,8);
+const before=structuredClone({reportConfig,reportResults});
+const report=createRunReport(reportResults,reportConfig,{version:'0.1.2',commit:'test-commit',startedAt:'2026-10-09T20:00:00Z',completedAt:'2026-10-09T20:00:01Z',durationMs:1000,userAgent:'test-browser'});
+const configText=report.split('EXACT CONFIGURATION (JSON)\n')[1].split('\n').slice(1).join('\n').split('\n\nALL SESSION RESULTS')[0];
+assert.deepEqual(JSON.parse(configText),reportConfig);
+assert.ok(report.includes('cannot fund next bet: 1 (33.33%)'));
+assert.ok(report.includes('Total table-limit hits: 2'));
+assert.ok(report.includes('Amount before progression: 7; every 3 spin(s); starts on spin 2'));
+assert.ok(report.includes('Source commit: test-commit'));
+assert.ok(report.includes('3\t140\t40\t20\t'+(-20/37)+'\t4\t2\t2\t2\ttable limit'));
+assert.ok(report.includes('1\t3\t-20'));
+assert.deepEqual({reportConfig,reportResults},before);
+assert.equal(reportFilename('2026-10-09T20:00:01Z'),'roulette-lab-report-20261009-200001.txt');
+assert.equal(reportFilename('invalid'),'roulette-lab-report.txt');
+assert.throws(()=>createRunReport([],reportConfig));
+const singleReport=createRunReport(reportResults.slice(0,1),{...reportConfig,sessions:1});assert.ok(singleReport.includes('Not estimable from one session'));
+const maxConfig={...c,spins:2,sessions:10000,bets:[{type:'red',value:'',amount:10,every:1,start:1}]};
+const maxResults=simulate(maxConfig),maxReport=createRunReport(maxResults,maxConfig);
+const sessionRows=maxReport.split('session\tfinal_bankroll')[1].split('\n\nSAMPLED PROFIT PATHS')[0].split('\n').slice(1);
+assert.equal(sessionRows.length,10000);assert.ok(sessionRows.at(-1).startsWith('10000\t'));
+console.log('Report checks passed: known statistics, original settings, all stop reasons, numeric precision, sampled paths, one-session report, and all 10,000 session rows.');
