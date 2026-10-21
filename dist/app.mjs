@@ -19,8 +19,26 @@ $('addBet').onclick=()=>{if(bets.length<20){bets.push({type:'straight',value:'17
 document.querySelectorAll('[data-wheel]').forEach(b=>b.onclick=()=>{pockets=+b.dataset.wheel;document.querySelectorAll('[data-wheel]').forEach(x=>x.classList.toggle('active',x===b));bets.forEach(x=>{if(x.type==='basket'&&pockets!==38){x.type='red';x.value='';}});$('edge').textContent=`${pockets} pockets · ${((pockets-36)/pockets*100).toFixed(2)}% standard house edge`;$('emptyEdge').textContent=((pockets-36)/pockets*100).toFixed(2)+'%';renderBets();board();dirty();});
 $('strategy').onchange=()=>{$('strategyHelp').textContent=help[$('strategy').value]+' Break-even spins leave the progression unchanged.';dirty();};$('strategy').onchange();renderBets();document.querySelectorAll('.controls input,.controls select').forEach(e=>e.addEventListener('input',dirty));
 function config(){const c={pockets,strategy:$('strategy').value,limitRule:$('limitRule').value,seed:$('seed').value,bets:structuredClone(bets)};for(const id of ['bankroll','base','spins','sessions','tableMax','takeProfit','stopLoss','resetWins']){const e=$(id);if(!e.checkValidity()||!e.value.trim())throw Error('Check '+e.labels?.[0]?.textContent+'.');c[id]=Number(e.value);}if(c.spins*c.sessions>10000000)throw Error('Choose at most 10 million total spins (spins × sessions).');if(!c.seed.trim())throw Error('Enter a seed so the experiment can be repeated.');if(!c.bets.length)throw Error('Add at least one betting rule on the table.');for(const b of c.bets){for(const key of ['amount','every','start'])if(!Number.isInteger(b[key])||b[key]<1||b[key]>(key==='amount'?1000000:100000))throw Error('Each rule needs valid positive whole-number amounts and spin numbers.');}return c;}
-$('cancel').onclick=()=>{worker?.terminate();worker=null;$('run').disabled=false;$('cancel').hidden=true;$('status').textContent='Run canceled';};
-$('run').onclick=()=>{let c;try{c=config();$('error').textContent='';}catch(e){$('error').textContent=e.message;return;}$('run').disabled=true;$('cancel').hidden=false;$('status').textContent='Simulating…';const startedAt=new Date().toISOString(),startedMs=performance.now();worker=new Worker('./worker.mjs',{type:'module'});worker.onmessage=e=>{if(e.data.progress!==undefined){$('status').textContent=`Simulating · ${Math.round(e.data.progress*100)}%`;return;}worker.terminate();worker=null;$('run').disabled=false;$('cancel').hidden=true;if(e.data.error){$('error').textContent=e.data.error;return;}show(e.data.results,c,{startedAt,completedAt:new Date().toISOString(),durationMs:performance.now()-startedMs,userAgent:navigator.userAgent});};worker.onerror=()=>{$('error').textContent='The simulation could not run. Please reload and try again.';$('run').disabled=false;$('cancel').hidden=true;worker?.terminate();};worker.postMessage(c);};
+function finishWorker(){worker?.terminate();worker=null;$('run').disabled=false;$('cancel').hidden=true;}
+function simulationFailed(){finishWorker();$('status').textContent='Run failed';$('error').textContent='The simulation could not run. Please try again.';}
+$('cancel').onclick=()=>{finishWorker();$('status').textContent='Run canceled';};
+$('run').onclick=()=>{
+  let c;try{c=config();$('error').textContent='';}catch(e){$('error').textContent=e.message;return;}
+  $('run').disabled=true;$('cancel').hidden=false;$('status').textContent='Simulating…';
+  const startedAt=new Date().toISOString(),startedMs=performance.now();
+  try{
+    const activeWorker=new Worker('./worker.mjs',{type:'module'});worker=activeWorker;
+    activeWorker.onmessage=e=>{
+      if(worker!==activeWorker)return;
+      if(e.data.progress!==undefined){$('status').textContent=`Simulating · ${Math.round(e.data.progress*100)}%`;return;}
+      finishWorker();
+      if(e.data.error){$('status').textContent='Run failed';$('error').textContent=e.data.error;return;}
+      show(e.data.results,c,{startedAt,completedAt:new Date().toISOString(),durationMs:performance.now()-startedMs,userAgent:navigator.userAgent});
+    };
+    activeWorker.onerror=()=>{if(worker===activeWorker)simulationFailed();};
+    activeWorker.postMessage(c);
+  }catch{simulationFailed();}
+};
 function show(r,c,meta){lastReport={results:r,config:structuredClone(c),meta};void prepareDownload(lastReport);$('empty').hidden=true;$('output').hidden=false;$('status').textContent=`${fmt(r.length)} sessions complete`;$('resultTitle').textContent=`${$('strategy').options[Array.from($('strategy').options).findIndex(x=>x.value===c.strategy)].text} · ${c.pockets} pockets`;
 const {count:n,totals,mean,wins,ties,ruins,zero,se,sorted,reasons}=summarizeRun(r),sum=k=>totals[k];$('mean').textContent=money(mean);$('meanNote').textContent=n>1?`Monte Carlo standard error: ¤${fmt(se)}`:'One session cannot estimate sampling error.';$('win').textContent=pct(wins/n);$('winNote').textContent=`${fmt(wins)} ahead · ${fmt(ties)} break-even`;$('ruin').textContent=pct(ruins/n);$('ruinNote').textContent=`${fmt(ruins)} stopped · ${fmt(zero)} finished at zero`;
 const q=p=>percentile(sorted,p);$('p10').textContent=money(q(.1));$('median').textContent=money(q(.5));$('p90').textContent=money(q(.9));
